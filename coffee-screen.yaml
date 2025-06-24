@@ -57,7 +57,7 @@ time:
 font:
   - file: "FreeSans.ttf"
     id: sans
-    size: 60
+    size: 40
 
 display:
   - platform: ili9xxx
@@ -77,13 +77,16 @@ display:
       // Define some color constants
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
-      // Format brew time
-      ESPTime tm;
+      // Calculate time difference
+      ESPTime brew_tm;
+      ESPTime now_tm = id(ha_time).now();
       // strptime(id(brewtime).state.c_str(), "%Y-%m-%d %H:%M:%S", &tm);
-      ESPTime::strptime(id(brewtime).state, tm);
+      ESPTime::strptime(id(brewtime).state, brew_tm);
+      ESPTime diff_tm = ESPTime::from_epoch_utc(now_tm.timestamp - brew_tm.timestamp);
       // Update display
-      it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", id(ha_time).now());
-      it.strftime(0, 80, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", tm);
+      it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
+      it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
+      it.strftime(0, 110, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
       // it.print(0, 80, id(sans), white, TextAlign::TOP_LEFT, id(brewtime).state.c_str(), black);
 
 sensor:
