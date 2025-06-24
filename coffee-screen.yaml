@@ -1,0 +1,113 @@
+# Coffee Status Screen
+# 2025/06 AMV
+# 
+# Platform: https://www.waveshare.com/wiki/ESP32-C6-LCD-1.47
+#
+# Pin mappings
+# ---
+# LCD DIN   GPIO6
+# LCD CLK   GPIO7
+# LCD CS    GPIO14
+# LCD DC    GPIO15
+# LCD RST   GPIO21
+# Backlight GPIO22
+# RGB       GPIO8
+#
+# Exposed Entities
+# ---
+# switch.backlight
+# light.rgb
+
+### Board Setup ###
+
+esphome:
+  name: coffee-screen
+
+esp32:
+  board: esp32-c6-devkitm-1
+
+preferences:
+  flash_write_interval: 10min
+
+wifi:
+  ssid: !secret ssid  
+  password: !secret wappw
+
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret apipw
+
+ota:
+  platform: esphome
+  password: !secret apipw
+
+### Implementmation ###
+
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO6
+  miso_pin: GPIO5
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+font:
+  - file: "FreeSans.ttf"
+    id: sans
+    size: 60
+
+display:
+  - platform: ili9xxx
+    model: st7789v
+    dimensions:
+      width: 172
+      offset_width: 34
+      height: 320
+    dc_pin: GPIO15
+    reset_pin: GPIO21
+    cs_pin: GPIO14
+    invert_colors: true
+    rotation: 90°
+    show_test_card: false
+    lambda: |-
+      // Define some color constants
+      auto black = Color(0, 0, 0);
+      auto white = Color(255, 255, 255);
+      // Update display
+      it.strftime(0, 30, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", id(ha_time).now());
+      // it.print(0, 30, id(sans), white, TextAlign::TOP_LEFT, std::string(buffer), black);
+
+sensor:
+  - platform: homeassistant
+    id: coffee_is_fresh
+    entity_id: sensor.coffee_is_fresh
+    
+text_sensor:
+  - platform: homeassistant
+    id: brewtime
+    entity_id: sensor.last_brew_end_time
+
+# Define a PWM output for the backlight
+output:
+  - platform: ledc
+    pin: GPIO22
+    id: backlight_pwm
+
+light:
+# Define a monochromatic, dimmable light for the backlight
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Backlight"
+    id: backlight
+    # restore_mode: ALWAYS_ON
+# Ground effects LED control (different from LCD backlight)
+  - platform: esp32_rmt_led_strip
+    name: Effect LED
+    id: led
+    chipset: WS2812
+    pin: GPIO8
+    num_leds: 1
+    rgb_order: RGB
