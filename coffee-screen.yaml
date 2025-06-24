@@ -58,6 +58,9 @@ font:
   - file: "FreeSans.ttf"
     id: sans
     size: 40
+  - file: "FreeSans.ttf"
+    id: console
+    size: 30
 
 display:
   - platform: ili9xxx
@@ -77,16 +80,31 @@ display:
       // Define some color constants
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
+      // Ensure values are ready
+      if (!id(ha_time).now().is_valid()) {
+        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Clock Loading...", black);
+        return;
+      }
       // Calculate time difference
       ESPTime brew_tm;
       ESPTime now_tm = id(ha_time).now();
       // strptime(id(brewtime).state.c_str(), "%Y-%m-%d %H:%M:%S", &tm);
-      ESPTime::strptime(id(brewtime).state, brew_tm);
+      if (!ESPTime::strptime(id(brewtime).state, brew_tm)) {
+        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Brewtime Loading...", black);
+        return;
+      }
+      // Note: ESPTime::recalc_timestamp_utc() appears to be broken
+      brew_tm.recalc_timestamp_local();  // Needed for .timestamp calls to work correctly
+      now_tm.recalc_timestamp_local();   // Needed for .timestamp calls to work correctly
+      // Subtracting local times then converting to UTC to get a delta
       ESPTime diff_tm = ESPTime::from_epoch_utc(now_tm.timestamp - brew_tm.timestamp);
       // Update display
       it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
       it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
-      it.strftime(0, 110, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
+      it.strftime(0, 110, id(console), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
+      // ESP_LOGW("main", "Current timestamp %d", now_tm.timestamp);
+      // ESP_LOGW("main", "Brew timestamp %d", brew_tm.timestamp);
+      // ESP_LOGW("main", "Diff timestamp %d", diff_tm.timestamp);
       // it.print(0, 80, id(sans), white, TextAlign::TOP_LEFT, id(brewtime).state.c_str(), black);
 
 sensor:
