@@ -56,8 +56,11 @@ time:
 
 font:
   - file: "FreeSans.ttf"
-    id: sans
+    id: header
     size: 40
+  - file: "FreeSans.ttf"
+    id: clock_font
+    size: 80
   - file: "FreeSans.ttf"
     id: console
     size: 30
@@ -76,7 +79,7 @@ display:
     rotation: 90°
     show_test_card: false
     lambda: |-
-      #include <time.h>
+      // #include <time.h>
       // Define some color constants
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
@@ -88,6 +91,7 @@ display:
       // Calculate time difference
       ESPTime brew_tm;
       ESPTime now_tm = id(ha_time).now();
+      // if (!ESPTime::strptime("2025-06-24 14:40:00", brew_tm)) {
       if (!ESPTime::strptime(id(brewtime).state, brew_tm)) {
         it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Brewtime Loading...", black);
         return;
@@ -97,10 +101,19 @@ display:
       now_tm.recalc_timestamp_local();   // Needed for .timestamp calls to work correctly
       // Subtracting local times then converting to UTC to get a delta
       ESPTime diff_tm = ESPTime::from_epoch_utc(now_tm.timestamp - brew_tm.timestamp);
+      Color dynamic_color;
+      if (diff_tm.timestamp < 3600) {
+        dynamic_color = Color(0, 255, 0);
+      } else if (diff_tm.timestamp < 7200) {
+        dynamic_color = Color(219, 202, 17);
+      } else {
+        dynamic_color = Color(255, 0, 0);
+      }
       // Update display
-      it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
-      it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
-      it.strftime(0, 110, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
+      // it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
+      // it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
+      it.print(0, 10, id(header), white, TextAlign::TOP_LEFT, "Time since brew:", black);
+      it.strftime(0, 60, id(clock_font), dynamic_color, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
       // ESP_LOGW("main", "Current timestamp %d", now_tm.timestamp);
       // ESP_LOGW("main", "Brew timestamp %d", brew_tm.timestamp);
       // ESP_LOGW("main", "Diff timestamp %d", diff_tm.timestamp);
