@@ -73,12 +73,18 @@ display:
     rotation: 90°
     show_test_card: false
     lambda: |-
+      #include <time.h>
       // Define some color constants
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
+      // Format brew time
+      ESPTime tm;
+      // strptime(id(brewtime).state.c_str(), "%Y-%m-%d %H:%M:%S", &tm);
+      ESPTime::strptime(id(brewtime).state, tm);
       // Update display
       it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", id(ha_time).now());
-      it.print(0, 80, id(sans), white, TextAlign::TOP_LEFT, id(brewtime).state.c_str(), black);
+      it.strftime(0, 80, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", tm);
+      // it.print(0, 80, id(sans), white, TextAlign::TOP_LEFT, id(brewtime).state.c_str(), black);
 
 sensor:
   - platform: homeassistant
