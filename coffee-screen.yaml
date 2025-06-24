@@ -118,10 +118,11 @@ display:
       // ESP_LOGW("main", "Brew timestamp %d", brew_tm.timestamp);
       // ESP_LOGW("main", "Diff timestamp %d", diff_tm.timestamp);
 
-sensor:
-  - platform: homeassistant
-    id: coffee_is_fresh
-    entity_id: sensor.coffee_is_fresh
+# We calculate this on our own
+# sensor:
+#   - platform: homeassistant
+#     id: coffee_is_fresh
+#     entity_id: sensor.coffee_is_fresh
     
 text_sensor:
   - platform: homeassistant
