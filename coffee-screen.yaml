@@ -77,8 +77,8 @@ display:
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
       // Update display
-      it.strftime(0, 30, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", id(ha_time).now());
-      // it.print(0, 30, id(sans), white, TextAlign::TOP_LEFT, std::string(buffer), black);
+      it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", id(ha_time).now());
+      it.print(0, 80, id(sans), white, TextAlign::TOP_LEFT, id(brewtime).state.c_str(), black);
 
 sensor:
   - platform: homeassistant
@@ -102,7 +102,7 @@ light:
     output: backlight_pwm
     name: "Backlight"
     id: backlight
-    # restore_mode: ALWAYS_ON
+    restore_mode: RESTORE_AND_ON
 # Ground effects LED control (different from LCD backlight)
   - platform: esp32_rmt_led_strip
     name: Effect LED
