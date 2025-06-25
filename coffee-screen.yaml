@@ -12,11 +12,18 @@
 # LCD RST   GPIO21
 # Backlight GPIO22
 # RGB       GPIO8
+# BOOT      GPIO9
 #
 # Exposed Entities
 # ---
 # switch.backlight
 # light.rgb
+#
+### Flow Logic ###
+# Boot with screen on, effect off, show connecting message
+# When HA time stabilizes, show loading message
+# When and if brew time stabilizes, turn on screen (once) and show brew time with appropriate effect
+# If user turns off screen, leave it off
 
 ### Board Setup ###
 
@@ -44,6 +51,23 @@ ota:
   password: !secret apipw
 
 ### Implementmation ###
+
+globals:
+    # For tracking first-time setup tasks
+  - id: fresh_boot
+    type: bool
+    restore_value: false
+    initial_value: 'true'
+    # Machine state of the backlight, may differ from user state
+  - id: backlight_on
+    type: bool
+    restore_value: false
+    initial_value: 'true'
+    # Effect color. 0 = off, 1 = green, 2 = yellow, 3 = red
+  - id: defcon
+    type: int
+    restore_value: false
+    initial_value: '0'
 
 spi:
   clk_pin: GPIO7
@@ -79,44 +103,83 @@ display:
     rotation: 90°
     show_test_card: false
     lambda: |-
-      // #include <time.h>
       // Define some color constants
       auto black = Color(0, 0, 0);
       auto white = Color(255, 255, 255);
+      // First time setup
+      if (id(fresh_boot)) {
+        id(backlight).turn_on().perform();
+        id(backlight_on) = true;
+        id(fresh_boot) = false;
+      }
       // Ensure values are ready
       if (!id(ha_time).now().is_valid()) {
-        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Clock Loading...", black);
-        return;
+        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Connecting To", black);
+        it.print(0, 12, id(console), white, TextAlign::TOP_LEFT, "Home Assistant...", black);
       }
       // Calculate time difference
-      ESPTime brew_tm;
       ESPTime now_tm = id(ha_time).now();
-      // if (!ESPTime::strptime("2025-06-24 14:40:00", brew_tm)) {
+      ESPTime brew_tm;
+      // if (!ESPTime::strptime("2025-06-24 21:40:00", brew_tm)) {
       if (!ESPTime::strptime(id(brewtime).state, brew_tm)) {
-        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Brewtime Loading...", black);
-        return;
-      }
-      // Note: ESPTime::recalc_timestamp_utc() appears to be broken
-      brew_tm.recalc_timestamp_local();  // Needed for .timestamp calls to work correctly
-      now_tm.recalc_timestamp_local();   // Needed for .timestamp calls to work correctly
-      // Subtracting local times then converting to UTC to get a delta
-      ESPTime diff_tm = ESPTime::from_epoch_utc(now_tm.timestamp - brew_tm.timestamp);
-      Color dynamic_color;
-      if (diff_tm.timestamp < 3600) {
-        dynamic_color = Color(0, 255, 0);
-      } else if (diff_tm.timestamp < 7200) {
-        dynamic_color = Color(219, 202, 17);
+        it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "Brewtime Unknown", black);
+        if (id(backlight_on)) {
+          id(backlight).turn_off().perform();
+          id(backlight_on) = false;
+        }
+        if (id(defcon) != 0) {
+          id(led).turn_off().perform();
+          id(defcon) = 0;
+        }
       } else {
-        dynamic_color = Color(255, 0, 0);
+        // Note: ESPTime::recalc_timestamp_utc() appears to be broken
+        brew_tm.recalc_timestamp_local();  // Needed for .timestamp calls to work correctly
+        now_tm.recalc_timestamp_local();   // Needed for .timestamp calls to work correctly
+        // Subtracting local times then converting to UTC to get a delta
+        ESPTime diff_tm = ESPTime::from_epoch_utc(now_tm.timestamp - brew_tm.timestamp);
+        Color dynamic_color;
+        if (diff_tm.timestamp < 3600) { // 1 hour
+          dynamic_color = Color(0, 255, 0);
+          if (id(defcon) != 1) {
+            id(led).turn_on().set_rgb(0, 255, 0).set_brightness(1.0).perform();
+            id(defcon) = 1;
+          }
+        } else if (diff_tm.timestamp < 7200) { // 2 hours
+          dynamic_color = Color(219, 202, 17);
+          if (id(defcon) != 2) {
+            id(led).turn_on().set_rgb(219, 202, 17).set_brightness(1.0).perform();
+            id(defcon) = 2;
+          }
+        } else if (diff_tm.timestamp < 18000) { // 5 hours
+          dynamic_color = Color(255, 0, 0);
+          if (id(defcon) !=3) {
+            id(led).turn_on().set_rgb(255, 0, 0).set_brightness(1.0).perform();
+            id(defcon) = 3;
+          }
+        } else {
+          it.print(0, 10, id(console), white, TextAlign::TOP_LEFT, "No Recent Brew :(", black);
+          if (id(backlight_on)) {
+            id(backlight).turn_off().perform();
+            id(backlight_on) = false;
+          }
+          if (id(defcon) != 0) {
+            id(led).turn_off().perform();
+            id(defcon) = 0;
+          }
+        }
+        // Update display
+        if (!id(backlight_on)) {
+          id(backlight).turn_on().perform();
+          id(backlight_on) = true;
+        }
+        // it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
+        // it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
+        it.print(0, 10, id(header), white, TextAlign::TOP_LEFT, "Time since brew:", black);
+        it.strftime(0, 60, id(clock_font), dynamic_color, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
+        // ESP_LOGW("main", "Current timestamp %d", now_tm.timestamp);
+        // ESP_LOGW("main", "Brew timestamp %d", brew_tm.timestamp);
+        // ESP_LOGW("main", "Diff timestamp %d", diff_tm.timestamp);
       }
-      // Update display
-      // it.strftime(0, 10, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", now_tm);
-      // it.strftime(0, 60, id(sans), white, black, TextAlign::TOP_LEFT, "%H:%M.%S", brew_tm);
-      it.print(0, 10, id(header), white, TextAlign::TOP_LEFT, "Time since brew:", black);
-      it.strftime(0, 60, id(clock_font), dynamic_color, black, TextAlign::TOP_LEFT, "%H:%M.%S", diff_tm);
-      // ESP_LOGW("main", "Current timestamp %d", now_tm.timestamp);
-      // ESP_LOGW("main", "Brew timestamp %d", brew_tm.timestamp);
-      // ESP_LOGW("main", "Diff timestamp %d", diff_tm.timestamp);
 
 # We calculate this on our own
 # sensor:
@@ -150,3 +213,31 @@ light:
     pin: GPIO8
     num_leds: 1
     rgb_order: RGB
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    id: boot_button
+    internal: true
+    on_press:
+      if:
+        condition:
+          light.is_on: backlight
+        then:
+          - light.turn_off: backlight
+          - light.turn_off: led 
+        else:
+          - light.turn_on: backlight
+          - if:
+              condition:
+                lambda: |-
+                  return id(defcon) != 0;
+              then:
+                - light.turn_on: led
+
+
