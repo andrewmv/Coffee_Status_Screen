@@ -166,6 +166,7 @@ display:
             id(led).turn_off().perform();
             id(defcon) = 0;
           }
+          return;
         }
         // Update display
         if (!id(backlight_on)) {
